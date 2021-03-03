@@ -1,0 +1,7 @@
+apiVersion: vault.io/v1alpha1
+kind: Register
+metadata:
+  name: register-sample
+spec:
+  # Add fields here
+  foo: bar
