@@ -19,7 +19,11 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"strconv"
 	"strings"
+
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"os"
 
@@ -76,6 +80,7 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			} else {
 				registerStatus.Message = ""
 				registerRequest.Annotations["token"] = token
+				registerStatus.Status = "VaultTokenPresent"
 			}
 		case "VaultTokenPresent":
 			// Create service account
@@ -90,15 +95,27 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		case "ServiceAccountCreated":
 			// Perform Vault rego
 			v, err := r.prepareVaultRequest(ctx, registerRequest)
+			var authEnabled, skipAuth bool
 			if err != nil {
 				registerStatus.Message = err.Error()
 			} else {
-				err = v.RegisterCluster()
+				authStringStatus, ok := registerRequest.Annotations["auth-enabled"]
+				if ok {
+					skipAuth, err = strconv.ParseBool(authStringStatus)
+					if err != nil {
+						registerStatus.Message = err.Error()
+					}
+				}
+				authEnabled, err = v.RegisterCluster(skipAuth)
 				if err != nil {
 					registerStatus.Message = err.Error()
 				} else {
 					registerStatus.Message = ""
 					registerStatus.Status = "VaultRegistrationComplete"
+					registerStatus.VaultAuthMount = registerRequest.Annotations["mountPath"]
+					if authEnabled {
+						registerRequest.Annotations["auth-enabled"] = "true"
+					}
 				}
 			}
 		case "VaultRegistrationComplete":
@@ -115,9 +132,10 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return ctrl.Result{}, nil
 		}
 		registerRequest.Status = *registerStatus
+		return ctrl.Result{Requeue: true}, r.Update(ctx, registerRequest)
 	}
 
-	return ctrl.Result{}, r.Update(ctx, registerRequest)
+	return ctrl.Result{}, nil
 }
 
 func (r *RegisterReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -156,7 +174,9 @@ func (r *RegisterReconciler) createSA(ctx context.Context, registerRequest *vaul
 			Namespace: registerRequest.Spec.Namespace,
 		},
 	}
-	err = r.Create(ctx, sa)
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, sa, func() error {
+		return nil
+	})
 	return err
 }
 
@@ -171,7 +191,7 @@ func (r *RegisterReconciler) prepareVaultRequest(ctx context.Context,
 	var typedSecret types.NamespacedName
 	for _, secret := range sa.Secrets {
 		typedSecret.Name = secret.Name
-		typedSecret.Namespace = secret.Namespace
+		typedSecret.Namespace = registerRequest.Spec.Namespace
 	}
 
 	saSecret := &v1.Secret{}
@@ -196,6 +216,14 @@ func (r *RegisterReconciler) prepareVaultRequest(ctx context.Context,
 	v.Namespace = registerRequest.Spec.Namespace
 	v.Policy = registerRequest.Spec.VaultPolicy
 	v.VaultToken = registerRequest.Annotations["token"]
+	v.VaultAddress = registerRequest.Spec.VaultAddr
+	if mount, ok := registerRequest.Annotations["mountPath"]; !ok {
+		v.Mount = "k8s" + generateRandomString(10)
+	} else {
+		v.Mount = mount
+	}
+	// Add to annotation. Will be needed for helm chart
+	registerRequest.Annotations["mountPath"] = v.Mount
 	return v, err
 }
 
@@ -243,4 +271,14 @@ func getAddress(node v1.Node) (address string) {
 	}
 
 	return address
+}
+
+func generateRandomString(size int) (random string) {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyz")
+	b := make([]rune, size)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	random = string(b)
+	return random
 }

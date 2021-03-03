@@ -28,21 +28,20 @@ type RegisterSpec struct {
 	VaultAddr                   string   `json:"vaultAddr"`
 	ServiceAccount              string   `json:"serviceAccount"`
 	Namespace                   string   `json:"namespace"`
-	VaultPolicy                 string   `json:"vaultPolicy"`
+	VaultPolicy                 []string `json:"vaultPolicy"`
 	VaultCACert                 string   `json:"vaultCACert,omitempty"`
 	ExternalSecretChartLocation string   `json:"externalSecretsChartLocation,omitempty"`
 	ExternalSecretVersion       string   `json:"externalSecretVersion,omitempty"`
 	SkipExternalSecretInstall   bool     `json:"skipExternalSecretInstall,omitempty"`
-	SSLDisable                  string   `json:"sslDisable,omitEmpty"`
-	ExternalSecretValues        []string `json:"externalSecretValues,omitEmpty"`
-	K8SEndpoint                 string   `json:"k8sEndpoint,omitEmpty"` //to provide an externally loadbalanced k8s endpoint
+	SSLDisable                  string   `json:"sslDisable,omitempty"`
+	ExternalSecretValues        []string `json:"externalSecretValues,omitempty"`
+	K8SEndpoint                 string   `json:"k8sEndpoint,omitempty"` //to provide an externally loadbalanced k8s endpoint
 }
 
 // RegisterStatus defines the observed state of Register
 type RegisterStatus struct {
 	Status         string `json:"status"`
 	VaultAuthMount string `json:"vaultAuthPath"`
-	VaultRole      string `json:"vaultRole"`
 	HelmStatus     string `json:"helmStatus"`
 	Message        string `json:"message"`
 }
