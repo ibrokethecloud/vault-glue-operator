@@ -23,15 +23,15 @@ func (v *VaultRegister) RegisterCluster(skipAuth bool) (authEnabled bool, err er
 	tlsConfig := &api.TLSConfig{Insecure: true}
 	err = config.ConfigureTLS(tlsConfig)
 	if err != nil {
-		return err
+		return authEnabled, err
 	}
 	client, err := api.NewClient(config)
 	if err != nil {
-		return err
+		return authEnabled, err
 	}
 	err = client.SetAddress(v.VaultAddress)
 	if err != nil {
-		return err
+		return authEnabled, err
 	}
 	client.SetToken(v.VaultToken)
 
@@ -50,7 +50,7 @@ func (v *VaultRegister) RegisterCluster(skipAuth bool) (authEnabled bool, err er
 	_, err = client.Logical().Write("auth/"+v.Mount+"/config", configData)
 
 	if err != nil {
-		return err
+		return authEnabled, err
 	}
 
 	roleData := make(map[string]interface{})
