@@ -8,6 +8,19 @@ metadata:
   creationTimestamp: null
   name: registers.vault.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.status
+    name: RegisterStatus
+    type: string
+  - JSONPath: .status.helmStatus
+    name: HelmStatus
+    type: string
+  - JSONPath: .status.vaultAuthPath
+    name: VaultMount
+    type: string
+  - JSONPath: .status.message
+    name: Message
+    type: string
   group: vault.io
   names:
     kind: Register
@@ -15,6 +28,7 @@ spec:
     plural: registers
     singular: register
   scope: Namespaced
+  subresources: {}
   validation:
     openAPIV3Schema:
       description: Register is the Schema for the registers API
@@ -34,24 +48,22 @@ spec:
         spec:
           description: RegisterSpec defines the desired state of Register
           properties:
-            externalSecretValues:
+            externalSecretNamespaceWatch:
               items:
                 type: string
               type: array
-            externalSecretVersion:
-              type: string
-            externalSecretsChartLocation:
-              type: string
             k8sEndpoint:
               type: string
             namespace:
+              type: string
+            roleName:
               type: string
             serviceAccount:
               type: string
             skipExternalSecretInstall:
               type: boolean
             sslDisable:
-              type: string
+              type: boolean
             vaultAddr:
               type: string
             vaultCACert:
@@ -62,6 +74,7 @@ spec:
               type: array
           required:
           - namespace
+          - roleName
           - serviceAccount
           - vaultAddr
           - vaultPolicy

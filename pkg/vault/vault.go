@@ -15,6 +15,7 @@ type VaultRegister struct {
 	Policy       []string
 	VaultToken   string
 	VaultAddress string
+	RoleName     string
 }
 
 //RegisterCluster will perform vault auth setup for this cluster
@@ -54,12 +55,12 @@ func (v *VaultRegister) RegisterCluster(skipAuth bool) (authEnabled bool, err er
 	}
 
 	roleData := make(map[string]interface{})
-	roleData["bound_service_account_names"] = v.SAToken
+	roleData["bound_service_account_names"] = v.SAName
 	roleData["bound_service_account_namespaces"] = v.Namespace
 	roleData["policies"] = v.Policy
 	roleData["ttl"] = "24h"
 
 	// perform role binding //
-	_, err = client.Logical().Write("auth/"+v.Mount+"/role/"+v.Mount+"-role", roleData)
+	_, err = client.Logical().Write("auth/"+v.Mount+"/role/"+v.RoleName, roleData)
 	return authEnabled, err
 }

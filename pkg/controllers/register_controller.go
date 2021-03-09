@@ -31,6 +31,7 @@ import (
 
 	"github.com/go-logr/logr"
 	vaultv1alpha1 "github.com/ibrokethecloud/vault-glue-operator/pkg/api/v1alpha1"
+	"github.com/ibrokethecloud/vault-glue-operator/pkg/helm"
 	"github.com/ibrokethecloud/vault-glue-operator/pkg/vault"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -76,6 +77,7 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			//Lets check if VaultRegoSecret exists//
 			token, err := r.checkVaultSecretExists(ctx)
 			if err != nil {
+				log.Error(err, "Error during vault registeration secret check")
 				registerStatus.Message = err.Error()
 			} else {
 				registerStatus.Message = ""
@@ -84,9 +86,11 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 		case "VaultTokenPresent":
 			// Create service account
+			log.Info("Managing service account")
 			err := r.createSA(ctx, registerRequest)
 			if err != nil {
 				registerStatus.Message = err.Error()
+				log.Error(err, "Error during SA creation")
 			} else {
 				registerStatus.Message = ""
 				registerStatus.Status = "ServiceAccountCreated"
@@ -94,9 +98,11 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 		case "ServiceAccountCreated":
 			// Perform Vault rego
+			log.Info("Managing setting up vault auth")
 			v, err := r.prepareVaultRequest(ctx, registerRequest)
 			var authEnabled, skipAuth bool
 			if err != nil {
+				log.Error(err, "Error during Vault setup")
 				registerStatus.Message = err.Error()
 			} else {
 				authStringStatus, ok := registerRequest.Annotations["auth-enabled"]
@@ -121,13 +127,23 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		case "VaultRegistrationComplete":
 			//Lets deploy external secrets helm chart
 			if registerRequest.Spec.SkipExternalSecretInstall {
+				log.Info("Help chart skipped")
 				registerStatus.Message = "External Secret Install Skipped"
 				registerStatus.Status = "Processed"
 			} else {
+				log.Info("Installing helm chart")
 				// perform helm install
+				output, err := r.installChart(ctx, registerRequest)
+				if err != nil {
+					log.Error(err, string(output))
+					registerStatus.Message = err.Error()
+				} else {
+					log.Info(string(output))
+					registerStatus.Message = ""
+					registerStatus.HelmStatus = "Installed"
+					registerStatus.Status = "Processed"
+				}
 			}
-		case "ExternalSecretsDeployed":
-			//Cluster registeration life cycle completed
 		case "Processed":
 			return ctrl.Result{}, nil
 		}
@@ -168,6 +184,16 @@ func (r *RegisterReconciler) checkVaultSecretExists(ctx context.Context) (token 
 }
 
 func (r *RegisterReconciler) createSA(ctx context.Context, registerRequest *vaultv1alpha1.Register) (err error) {
+	ns := &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: registerRequest.Spec.Namespace,
+		},
+	}
+
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, ns, func() error {
+		return nil
+	})
+
 	sa := &v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      registerRequest.Spec.ServiceAccount,
@@ -217,6 +243,7 @@ func (r *RegisterReconciler) prepareVaultRequest(ctx context.Context,
 	v.Policy = registerRequest.Spec.VaultPolicy
 	v.VaultToken = registerRequest.Annotations["token"]
 	v.VaultAddress = registerRequest.Spec.VaultAddr
+	v.RoleName = registerRequest.Spec.RoleName
 	if mount, ok := registerRequest.Annotations["mountPath"]; !ok {
 		v.Mount = "k8s" + generateRandomString(10)
 	} else {
@@ -240,6 +267,49 @@ func (r *RegisterReconciler) findMasterNodes(ctx context.Context) (masterNode st
 		}
 	}
 	return masterNode, err
+}
+
+func (r *RegisterReconciler) installChart(ctx context.Context,
+	registerRequest *vaultv1alpha1.Register) (output []byte, err error) {
+	var vaultCertPresent bool
+	if len(registerRequest.Spec.VaultCACert) != 0 {
+		vaultCertPresent = true
+	}
+	helmWrapper := helm.Wrapper{
+		Namespace:       registerRequest.Spec.Namespace,
+		ServiceAccount:  registerRequest.Spec.ServiceAccount,
+		VaultAddress:    registerRequest.Spec.VaultAddr,
+		VaultSkipVerify: registerRequest.Spec.SSLDisable,
+		VaultCACert:     vaultCertPresent,
+		MountName:       registerRequest.Status.VaultAuthMount,
+		RoleName:        registerRequest.Spec.RoleName,
+	}
+
+	if vaultCertPresent {
+		// need to create the secret with the ca cert chain
+		err = r.createCASecret(ctx, registerRequest)
+		if err != nil {
+			return output, err
+		}
+	}
+
+	output, err = helmWrapper.InstallChart()
+	return output, err
+}
+
+func (r *RegisterReconciler) createCASecret(ctx context.Context, registerRequest *vaultv1alpha1.Register) (err error) {
+	stringData := make(map[string]string)
+	stringData["ca.pem"] = registerRequest.Spec.VaultCACert
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vault-ca",
+			Namespace: registerRequest.Spec.Namespace,
+		},
+		StringData: stringData,
+	}
+
+	err = r.Create(ctx, secret)
+	return err
 }
 
 func isMaster(labels map[string]string) (ok bool) {

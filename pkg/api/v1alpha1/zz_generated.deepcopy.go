@@ -91,8 +91,8 @@ func (in *RegisterSpec) DeepCopyInto(out *RegisterSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.ExternalSecretValues != nil {
-		in, out := &in.ExternalSecretValues, &out.ExternalSecretValues
+	if in.ExternalSecretNamespaceWatch != nil {
+		in, out := &in.ExternalSecretNamespaceWatch, &out.ExternalSecretNamespaceWatch
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
