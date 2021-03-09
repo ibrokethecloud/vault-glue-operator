@@ -5,10 +5,10 @@
 replicaCount: 1
 
 image:
-  repository: nginx
-  pullPolicy: IfNotPresent
+  repository: gmehta3/vault-glue-operator
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
@@ -35,10 +35,6 @@ securityContext: {}
   # readOnlyRootFilesystem: true
   # runAsNonRoot: true
   # runAsUser: 1000
-
-service:
-  type: ClusterIP
-  port: 80
 
 
 resources: {}

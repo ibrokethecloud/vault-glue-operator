@@ -55,7 +55,7 @@ type RegisterReconciler struct {
 
 // +kubebuilder:rbac:groups=vault.io,resources=registers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=vault.io,resources=registers/status,verbs=get;update;patch
-
+// Reconcile runs the reconilliation loop
 func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("register", req.NamespacedName)
@@ -115,6 +115,9 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				authEnabled, err = v.RegisterCluster(skipAuth)
 				if err != nil {
 					registerStatus.Message = err.Error()
+					if strings.Contains(err.Error(), "path is already in use at") {
+						delete(registerRequest.Annotations, "mountPath")
+					}
 				} else {
 					registerStatus.Message = ""
 					registerStatus.Status = "VaultRegistrationComplete"

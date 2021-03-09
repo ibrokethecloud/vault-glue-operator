@@ -1,8 +1,10 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= gmehta3/vault-glue-operator:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
+# Version to specify external secrets version
+VERSION ?= "6.4.0"
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -56,7 +58,7 @@ generate: controller-gen
 
 # Build the docker image
 docker-build: test
-	docker build . -t ${IMG}
+	docker build . -t ${IMG} --build-arg VERSION=${VERSION}
 
 # Push the docker image
 docker-push:
