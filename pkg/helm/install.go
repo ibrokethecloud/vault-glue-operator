@@ -21,7 +21,7 @@ type Wrapper struct {
 }
 
 // ChartVersion variable is passed via build flags when a new version is available
-var ChartVersion = "6.4.0"
+var ChartVersion = "6.1.0"
 
 const (
 	HelmCommand = "helm"
