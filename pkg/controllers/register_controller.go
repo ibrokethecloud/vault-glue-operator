@@ -44,6 +44,7 @@ import (
 const (
 	DefaultNamespace = "vault-glue-operator"
 	DefaultSecret    = "vault-token"
+	finalizer        = "vault-glue-operator"
 )
 
 // RegisterReconciler reconciles a Register object
@@ -59,7 +60,7 @@ type RegisterReconciler struct {
 func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("register", req.NamespacedName)
-
+	var requeue bool
 	registerRequest := &vaultv1alpha1.Register{}
 
 	if err := r.Get(ctx, req.NamespacedName, registerRequest); err != nil {
@@ -149,14 +150,54 @@ func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 		case "Processed":
 			return ctrl.Result{}, nil
+
 		}
 		registerRequest.Status = *registerStatus
-		return ctrl.Result{Requeue: true}, r.Update(ctx, registerRequest)
+		controllerutil.AddFinalizer(registerRequest, finalizer)
+		requeue = true
+
+	} else {
+		if containsString(registerRequest.ObjectMeta.Finalizers, finalizer) {
+			// lets delete the instance //
+			log.Info("Cleaning up associated resources")
+			registerStatus = registerRequest.Status.DeepCopy()
+			if registerStatus.HelmStatus == "Installed" {
+				// lets remove the chart //
+				output, err := r.uninstallChart(ctx, registerRequest)
+				log.Info(string(output))
+				if err != nil {
+					registerStatus.Message = err.Error()
+					requeue = true
+				} else {
+					registerStatus.HelmStatus = ""
+				}
+			}
+
+			if registerStatus.VaultAuthMount != "" {
+				v, err := r.prepareVaultRequest(ctx, registerRequest)
+				if err != nil {
+					registerStatus.Message = err.Error()
+					requeue = true
+				} else {
+					err = v.UnregisterCluster()
+					if err != nil {
+						registerStatus.Message = err.Error()
+						requeue = true
+					}
+					registerStatus.VaultAuthMount = ""
+				}
+			}
+			registerRequest.Status = *registerStatus
+		}
+		if registerStatus.HelmStatus == "" && registerStatus.VaultAuthMount == "" {
+			controllerutil.RemoveFinalizer(registerRequest, finalizer)
+		}
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{Requeue: requeue}, r.Update(ctx, registerRequest)
 }
 
+// SetupWithManager will setup the controller to watch objects
 func (r *RegisterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&vaultv1alpha1.Register{}).
@@ -278,16 +319,8 @@ func (r *RegisterReconciler) installChart(ctx context.Context,
 	if len(registerRequest.Spec.VaultCACert) != 0 {
 		vaultCertPresent = true
 	}
-	helmWrapper := helm.Wrapper{
-		Namespace:       registerRequest.Spec.Namespace,
-		ServiceAccount:  registerRequest.Spec.ServiceAccount,
-		VaultAddress:    registerRequest.Spec.VaultAddr,
-		VaultSkipVerify: registerRequest.Spec.SSLDisable,
-		VaultCACert:     vaultCertPresent,
-		MountName:       registerRequest.Status.VaultAuthMount,
-		RoleName:        registerRequest.Spec.RoleName,
-	}
 
+	helmWrapper := prepareHelmWrapper(registerRequest, vaultCertPresent)
 	if vaultCertPresent {
 		// need to create the secret with the ca cert chain
 		err = r.createCASecret(ctx, registerRequest)
@@ -298,6 +331,27 @@ func (r *RegisterReconciler) installChart(ctx context.Context,
 
 	output, err = helmWrapper.InstallChart()
 	return output, err
+}
+
+func (r *RegisterReconciler) uninstallChart(ctx context.Context,
+	registerRequest *vaultv1alpha1.Register) (output []byte, err error) {
+	helmWrapper := prepareHelmWrapper(registerRequest, false)
+	output, err = helmWrapper.UninstallChart()
+	return output, err
+}
+
+func prepareHelmWrapper(registerRequest *vaultv1alpha1.Register, vaultCertPresent bool) (helmWrapper helm.Wrapper) {
+
+	helmWrapper = helm.Wrapper{
+		Namespace:       registerRequest.Spec.Namespace,
+		ServiceAccount:  registerRequest.Spec.ServiceAccount,
+		VaultAddress:    registerRequest.Spec.VaultAddr,
+		VaultSkipVerify: registerRequest.Spec.SSLDisable,
+		VaultCACert:     vaultCertPresent,
+		MountName:       registerRequest.Status.VaultAuthMount,
+		RoleName:        registerRequest.Spec.RoleName,
+	}
+	return helmWrapper
 }
 
 func (r *RegisterReconciler) createCASecret(ctx context.Context, registerRequest *vaultv1alpha1.Register) (err error) {
@@ -354,4 +408,13 @@ func generateRandomString(size int) (random string) {
 	}
 	random = string(b)
 	return random
+}
+
+func containsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
 }

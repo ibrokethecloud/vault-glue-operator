@@ -1,4 +1,4 @@
-domain: io
+domain: .io
 repo: github.com/ibrokethecloud/vault-glue-operator
 resources:
 - group: vault

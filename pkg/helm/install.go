@@ -86,3 +86,12 @@ func (w *Wrapper) generateValues() (output bytes.Buffer, err error) {
 	err = valuesTemplate.Execute(&output, w)
 	return output, err
 }
+
+// UninstallChart is the used by the operator to clean up the helm chart
+func (w *Wrapper) UninstallChart() (cmdOutput []byte, err error) {
+	uninstallArgsStr := fmt.Sprintf("uninstall glue-external-secrets -n %s", w.Namespace)
+	uninstallArgs := strings.Fields(uninstallArgsStr)
+	helmCommand := exec.Command(HelmCommand, uninstallArgs...)
+	cmdOutput, err = helmCommand.CombinedOutput()
+	return cmdOutput, err
+}

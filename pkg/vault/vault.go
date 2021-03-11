@@ -20,21 +20,10 @@ type VaultRegister struct {
 
 //RegisterCluster will perform vault auth setup for this cluster
 func (v *VaultRegister) RegisterCluster(skipAuth bool) (authEnabled bool, err error) {
-	config := &api.Config{}
-	tlsConfig := &api.TLSConfig{Insecure: true}
-	err = config.ConfigureTLS(tlsConfig)
+	client, err := v.createClient()
 	if err != nil {
 		return authEnabled, err
 	}
-	client, err := api.NewClient(config)
-	if err != nil {
-		return authEnabled, err
-	}
-	err = client.SetAddress(v.VaultAddress)
-	if err != nil {
-		return authEnabled, err
-	}
-	client.SetToken(v.VaultToken)
 
 	if !skipAuth {
 		err = client.Sys().EnableAuthWithOptions(v.Mount, &api.EnableAuthOptions{Type: "kubernetes"})
@@ -63,4 +52,38 @@ func (v *VaultRegister) RegisterCluster(skipAuth bool) (authEnabled bool, err er
 	// perform role binding //
 	_, err = client.Logical().Write("auth/"+v.Mount+"/role/"+v.RoleName, roleData)
 	return authEnabled, err
+}
+
+// UnregisterCluster will disable the associated k8s backend
+func (v *VaultRegister) UnregisterCluster() (err error) {
+	client, err := v.createClient()
+	if err != nil {
+		return err
+	}
+
+	authMap, err := client.Sys().ListAuth()
+	if _, ok := authMap[v.Mount]; ok {
+		err = client.Sys().DisableAuth(v.Mount)
+	}
+
+	return err
+}
+
+func (v *VaultRegister) createClient() (client *api.Client, err error) {
+	config := &api.Config{}
+	tlsConfig := &api.TLSConfig{Insecure: true}
+	err = config.ConfigureTLS(tlsConfig)
+	if err != nil {
+		return client, err
+	}
+	client, err = api.NewClient(config)
+	if err != nil {
+		return client, err
+	}
+	err = client.SetAddress(v.VaultAddress)
+	if err != nil {
+		return client, err
+	}
+	client.SetToken(v.VaultToken)
+	return client, nil
 }
