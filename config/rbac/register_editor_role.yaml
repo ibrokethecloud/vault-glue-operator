@@ -5,7 +5,7 @@ metadata:
   name: register-editor-role
 rules:
 - apiGroups:
-  - vault.io
+  - vault.cattle.io
   resources:
   - registers
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - vault.io
+  - vault.cattle.io
   resources:
   - registers/status
   verbs:

@@ -62,7 +62,7 @@ func (v *VaultRegister) UnregisterCluster() (err error) {
 	}
 
 	authMap, err := client.Sys().ListAuth()
-	if _, ok := authMap[v.Mount]; ok {
+	if _, ok := authMap[v.Mount+"/"]; ok {
 		err = client.Sys().DisableAuth(v.Mount)
 	}
 

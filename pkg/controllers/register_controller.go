@@ -54,8 +54,8 @@ type RegisterReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=vault.io,resources=registers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=vault.io,resources=registers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=vault.cattle.io,resources=registers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=vault.cattle.io,resources=registers/status,verbs=get;update;patch
 // Reconcile runs the reconilliation loop
 func (r *RegisterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()

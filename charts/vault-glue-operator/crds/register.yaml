@@ -4,7 +4,7 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.5
   creationTimestamp: null
-  name: registers.vault.io
+  name: registers.vault.cattle.io
 spec:
   additionalPrinterColumns:
   - JSONPath: .status.status
@@ -19,7 +19,7 @@ spec:
   - JSONPath: .status.message
     name: Message
     type: string
-  group: vault.io
+  group: vault.cattle.io
   names:
     kind: Register
     listKind: RegisterList
