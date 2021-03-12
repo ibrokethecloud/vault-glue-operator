@@ -5,7 +5,7 @@ metadata:
   name: register-viewer-role
 rules:
 - apiGroups:
-  - vault.io
+  - vault.cattle.io
   resources:
   - registers
   verbs:
@@ -13,7 +13,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - vault.io
+  - vault.cattle.io
   resources:
   - registers/status
   verbs:

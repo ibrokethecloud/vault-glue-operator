@@ -12,7 +12,7 @@ kubectl create secret generic vault-token --from-literal=token="s.hEHPq50qOyd9Rv
 The operator looks for a Register request crd like the one below:
 
 ```yaml
-apiVersion: vault.io/v1alpha1
+apiVersion: vault.cattle.io/v1alpha1
 kind: Register
 metadata:
   name: external-secrets

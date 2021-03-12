@@ -1,4 +1,4 @@
-apiVersion: vault.io/v1alpha1
+apiVersion: vault.cattle.io/v1alpha1
 kind: Register
 metadata:
   name: register-sample
